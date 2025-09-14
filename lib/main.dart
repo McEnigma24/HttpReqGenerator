@@ -92,7 +92,13 @@ class _HttpRequestGeneratorPageState extends State<HttpRequestGeneratorPage> {
     });
 
     try {
-      final url = Uri.parse('http://${_ipController.text}:${_portController.text}${_apiPathController.text}');
+      // Automatycznie dodaj ukośnik na początku ścieżki API jeśli go nie ma
+      String apiPath = _apiPathController.text;
+      if (!apiPath.startsWith('/')) {
+        apiPath = '/$apiPath';
+      }
+      
+      final url = Uri.parse('http://${_ipController.text}:${_portController.text}$apiPath');
       
       final jsonPayload = {
         'append': _appendChecked,
@@ -103,9 +109,10 @@ class _HttpRequestGeneratorPageState extends State<HttpRequestGeneratorPage> {
         url,
         headers: {
           'Content-Type': 'application/json',
+          'Connection': 'close', // Dodajemy header aby zamknąć połączenie po żądaniu
         },
         body: jsonEncode(jsonPayload),
-      ).timeout(const Duration(seconds: 10));
+      ).timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
         _showSnackBar('Żądanie wysłane pomyślnie! Status: ${response.statusCode}');
@@ -113,7 +120,11 @@ class _HttpRequestGeneratorPageState extends State<HttpRequestGeneratorPage> {
         _showSnackBar('Błąd: ${response.statusCode} - ${response.reasonPhrase}');
       }
     } catch (e) {
-      _showSnackBar('Błąd połączenia: $e');
+      String errorMessage = 'Błąd połączenia: $e';
+      if (e.toString().contains('Connection closed')) {
+        errorMessage = 'Błąd: Połączenie zostało zamknięte przez serwer. Sprawdź czy serwer działa na podanym adresie.';
+      }
+      _showSnackBar(errorMessage);
     } finally {
       setState(() {
         _isLoading = false;
@@ -133,23 +144,24 @@ class _HttpRequestGeneratorPageState extends State<HttpRequestGeneratorPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        title: const Text(
+          'HTTP Request Generator',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        centerTitle: true,
+        backgroundColor: Colors.blue,
+        elevation: 0,
+      ),
       resizeToAvoidBottomInset: false, // Prevents keyboard from pushing UI up
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Title
-              const Text(
-                'HTTP Request Generator',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 32),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
               
               // IP Address and Port row
               Row(
@@ -296,8 +308,7 @@ class _HttpRequestGeneratorPageState extends State<HttpRequestGeneratorPage> {
                         ),
                       ),
               ),
-            ],
-          ),
+          ],
         ),
       ),
     );
