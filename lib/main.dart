@@ -40,6 +40,12 @@ class _HttpRequestGeneratorPageState extends State<HttpRequestGeneratorPage> {
   bool _appendChecked = false;
   bool _isLoading = false;
   bool _isCompleted = false;
+  
+  // Listy dla dropdown'ów
+  List<String> _ipList = [];
+  List<String> _portList = [];
+  String? _selectedIp;
+  String? _selectedPort;
 
   @override
   void initState() {
@@ -65,8 +71,12 @@ class _HttpRequestGeneratorPageState extends State<HttpRequestGeneratorPage> {
   Future<void> _loadSavedData() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _ipController.text = prefs.getString('ip_address') ?? '192.168.1.35';
-      _portController.text = prefs.getString('port') ?? '80';
+      _ipList = prefs.getStringList('ip_list') ?? [];
+      _portList = prefs.getStringList('port_list') ?? [];
+      _selectedIp = prefs.getString('selected_ip');
+      _selectedPort = prefs.getString('selected_port');
+      _ipController.text = _selectedIp ?? '';
+      _portController.text = _selectedPort ?? '';
       _apiPathController.text = prefs.getString('api_path') ?? '/dupa';
       _contentController.text = prefs.getString('content') ?? 'hs';
       _appendChecked = prefs.getBool('append') ?? false;
@@ -77,6 +87,10 @@ class _HttpRequestGeneratorPageState extends State<HttpRequestGeneratorPage> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('ip_address', _ipController.text);
     await prefs.setString('port', _portController.text);
+    await prefs.setString('selected_ip', _selectedIp ?? '');
+    await prefs.setString('selected_port', _selectedPort ?? '');
+    await prefs.setStringList('ip_list', _ipList);
+    await prefs.setStringList('port_list', _portList);
     await prefs.setString('api_path', _apiPathController.text);
     await prefs.setString('content', _contentController.text);
     await prefs.setBool('append', _appendChecked);
@@ -89,8 +103,100 @@ class _HttpRequestGeneratorPageState extends State<HttpRequestGeneratorPage> {
     }
   }
 
+  void _addNewIp(String newIp) {
+    if (newIp.isNotEmpty && !_ipList.contains(newIp)) {
+      setState(() {
+        _ipList.add(newIp);
+        _selectedIp = newIp;
+        _ipController.text = newIp;
+      });
+      _saveData();
+    }
+  }
+
+  void _addNewPort(String newPort) {
+    if (newPort.isNotEmpty && !_portList.contains(newPort)) {
+      setState(() {
+        _portList.add(newPort);
+        _selectedPort = newPort;
+        _portController.text = newPort;
+      });
+      _saveData();
+    }
+  }
+
+  void _showAddIpDialog() {
+    final TextEditingController controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Dodaj nowy adres IP'),
+          content: TextField(
+            controller: controller,
+            keyboardType: TextInputType.number,
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+            ],
+            decoration: const InputDecoration(
+              hintText: 'np. 192.168.1.100',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Anuluj'),
+            ),
+            TextButton(
+              onPressed: () {
+                _addNewIp(controller.text);
+                Navigator.of(context).pop();
+              },
+              child: const Text('Dodaj'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showAddPortDialog() {
+    final TextEditingController controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Dodaj nowy port'),
+          content: TextField(
+            controller: controller,
+            keyboardType: TextInputType.number,
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly,
+            ],
+            decoration: const InputDecoration(
+              hintText: 'np. 9000',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Anuluj'),
+            ),
+            TextButton(
+              onPressed: () {
+                _addNewPort(controller.text);
+                Navigator.of(context).pop();
+              },
+              child: const Text('Dodaj'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Future<void> _sendRequest() async {
-    if (_ipController.text.isEmpty || _portController.text.isEmpty) {
+    if (_selectedIp == null || _selectedPort == null) {
       return;
     }
 
@@ -105,7 +211,7 @@ class _HttpRequestGeneratorPageState extends State<HttpRequestGeneratorPage> {
       apiPath = '/$apiPath';
     }
     
-    final url = Uri.parse('http://${_ipController.text}:${_portController.text}$apiPath');
+    final url = Uri.parse('http://$_selectedIp:$_selectedPort$apiPath');
     
     final jsonPayload = {
       'append': _appendChecked,
@@ -172,7 +278,7 @@ class _HttpRequestGeneratorPageState extends State<HttpRequestGeneratorPage> {
         elevation: 0,
       ),
       resizeToAvoidBottomInset: false, // Prevents keyboard from pushing UI up
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -191,16 +297,34 @@ class _HttpRequestGeneratorPageState extends State<HttpRequestGeneratorPage> {
                           style: TextStyle(fontWeight: FontWeight.w500),
                         ),
                         const SizedBox(height: 4),
-                        TextField(
-                          controller: _ipController,
-                          keyboardType: TextInputType.number,
-                          inputFormatters: [
-                            FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
-                          ],
+                        DropdownButtonFormField<String>(
+                          value: _selectedIp,
+                          isExpanded: true,
                           decoration: const InputDecoration(
                             border: OutlineInputBorder(),
-                            hintText: '192.168.1.35',
                           ),
+                          hint: const Text('Wybierz IP'),
+                          items: [
+                            ..._ipList.map((ip) => DropdownMenuItem(
+                              value: ip,
+                              child: Text(ip, overflow: TextOverflow.ellipsis),
+                            )),
+                            const DropdownMenuItem(
+                              value: 'ADD_NEW_IP',
+                              child: Text('+ Dodaj nowy IP', overflow: TextOverflow.ellipsis),
+                            ),
+                          ],
+                          onChanged: (String? newValue) {
+                            if (newValue == 'ADD_NEW_IP') {
+                              _showAddIpDialog();
+                            } else if (newValue != null) {
+                              setState(() {
+                                _selectedIp = newValue;
+                                _ipController.text = newValue;
+                              });
+                              _saveData();
+                            }
+                          },
                         ),
                       ],
                     ),
@@ -216,16 +340,34 @@ class _HttpRequestGeneratorPageState extends State<HttpRequestGeneratorPage> {
                           style: TextStyle(fontWeight: FontWeight.w500),
                         ),
                         const SizedBox(height: 4),
-                        TextField(
-                          controller: _portController,
-                          keyboardType: TextInputType.number,
-                          inputFormatters: [
-                            FilteringTextInputFormatter.digitsOnly,
-                          ],
+                        DropdownButtonFormField<String>(
+                          value: _selectedPort,
+                          isExpanded: true,
                           decoration: const InputDecoration(
                             border: OutlineInputBorder(),
-                            hintText: '80',
                           ),
+                          hint: const Text('Port'),
+                          items: [
+                            ..._portList.map((port) => DropdownMenuItem(
+                              value: port,
+                              child: Text(port, overflow: TextOverflow.ellipsis),
+                            )),
+                            const DropdownMenuItem(
+                              value: 'ADD_NEW_PORT',
+                              child: Text('+ Dodaj', overflow: TextOverflow.ellipsis),
+                            ),
+                          ],
+                          onChanged: (String? newValue) {
+                            if (newValue == 'ADD_NEW_PORT') {
+                              _showAddPortDialog();
+                            } else if (newValue != null) {
+                              setState(() {
+                                _selectedPort = newValue;
+                                _portController.text = newValue;
+                              });
+                              _saveData();
+                            }
+                          },
                         ),
                       ],
                     ),
