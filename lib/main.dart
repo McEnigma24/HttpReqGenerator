@@ -46,6 +46,11 @@ class _HttpRequestGeneratorPageState extends State<HttpRequestGeneratorPage> {
   List<String> _portList = [];
   String? _selectedIp;
   String? _selectedPort;
+  
+  // Stany rozwinięcia dropdown'ów
+  bool _isIpDropdownOpen = false;
+  bool _isPortDropdownOpen = false;
+  
 
   @override
   void initState() {
@@ -73,8 +78,14 @@ class _HttpRequestGeneratorPageState extends State<HttpRequestGeneratorPage> {
     setState(() {
       _ipList = prefs.getStringList('ip_list') ?? [];
       _portList = prefs.getStringList('port_list') ?? [];
-      _selectedIp = prefs.getString('selected_ip');
-      _selectedPort = prefs.getString('selected_port');
+      
+      // Walidacja wczytanych wartości
+      String? savedIp = prefs.getString('selected_ip');
+      String? savedPort = prefs.getString('selected_port');
+      
+      _selectedIp = (savedIp != null && _ipList.contains(savedIp)) ? savedIp : null;
+      _selectedPort = (savedPort != null && _portList.contains(savedPort)) ? savedPort : null;
+      
       _ipController.text = _selectedIp ?? '';
       _portController.text = _selectedPort ?? '';
       _apiPathController.text = prefs.getString('api_path') ?? '/dupa';
@@ -87,8 +98,11 @@ class _HttpRequestGeneratorPageState extends State<HttpRequestGeneratorPage> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('ip_address', _ipController.text);
     await prefs.setString('port', _portController.text);
-    await prefs.setString('selected_ip', _selectedIp ?? '');
-    await prefs.setString('selected_port', _selectedPort ?? '');
+    
+    // Zapisz tylko prawidłowe wartości
+    await prefs.setString('selected_ip', (_selectedIp != null && _ipList.contains(_selectedIp)) ? _selectedIp! : '');
+    await prefs.setString('selected_port', (_selectedPort != null && _portList.contains(_selectedPort)) ? _selectedPort! : '');
+    
     await prefs.setStringList('ip_list', _ipList);
     await prefs.setStringList('port_list', _portList);
     await prefs.setString('api_path', _apiPathController.text);
@@ -123,6 +137,38 @@ class _HttpRequestGeneratorPageState extends State<HttpRequestGeneratorPage> {
       });
       _saveData();
     }
+  }
+
+  void _removeIp(String ip) {
+    setState(() {
+      _ipList.remove(ip);
+      if (_selectedIp == ip) {
+        _selectedIp = null;
+        _ipController.text = '';
+      }
+      // Walidacja - upewnij się, że wybrana wartość istnieje w liście
+      if (_selectedIp != null && !_ipList.contains(_selectedIp)) {
+        _selectedIp = null;
+        _ipController.text = '';
+      }
+    });
+    _saveData();
+  }
+
+  void _removePort(String port) {
+    setState(() {
+      _portList.remove(port);
+      if (_selectedPort == port) {
+        _selectedPort = null;
+        _portController.text = '';
+      }
+      // Walidacja - upewnij się, że wybrana wartość istnieje w liście
+      if (_selectedPort != null && !_portList.contains(_selectedPort)) {
+        _selectedPort = null;
+        _portController.text = '';
+      }
+    });
+    _saveData();
   }
 
   void _showAddIpDialog() {
@@ -297,34 +343,62 @@ class _HttpRequestGeneratorPageState extends State<HttpRequestGeneratorPage> {
                           style: TextStyle(fontWeight: FontWeight.w500),
                         ),
                         const SizedBox(height: 4),
-                        DropdownButtonFormField<String>(
-                          value: _selectedIp,
-                          isExpanded: true,
-                          decoration: const InputDecoration(
-                            border: OutlineInputBorder(),
-                          ),
-                          hint: const Text('Wybierz IP'),
-                          items: [
-                            ..._ipList.map((ip) => DropdownMenuItem(
-                              value: ip,
-                              child: Text(ip, overflow: TextOverflow.ellipsis),
-                            )),
-                            const DropdownMenuItem(
-                              value: 'ADD_NEW_IP',
-                              child: Text('+ Dodaj nowy IP', overflow: TextOverflow.ellipsis),
-                            ),
-                          ],
-                          onChanged: (String? newValue) {
-                            if (newValue == 'ADD_NEW_IP') {
-                              _showAddIpDialog();
-                            } else if (newValue != null) {
-                              setState(() {
-                                _selectedIp = newValue;
-                                _ipController.text = newValue;
-                              });
-                              _saveData();
-                            }
+                        GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              _isIpDropdownOpen = !_isIpDropdownOpen;
+                            });
                           },
+                          child: DropdownButtonFormField<String>(
+                            value: _selectedIp,
+                            isExpanded: true,
+                            decoration: const InputDecoration(
+                              border: OutlineInputBorder(),
+                            ),
+                            hint: const Text('Wybierz IP'),
+                            items: [
+                              ..._ipList.map((ip) => DropdownMenuItem(
+                                value: ip,
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(ip, overflow: TextOverflow.ellipsis),
+                                    ),
+                                    if (_isIpDropdownOpen)
+                                      IconButton(
+                                        icon: const Icon(Icons.delete, size: 16, color: Colors.red),
+                                        onPressed: () {
+                                          _removeIp(ip);
+                                          setState(() {
+                                            _isIpDropdownOpen = false;
+                                          });
+                                        },
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(),
+                                      ),
+                                  ],
+                                ),
+                              )),
+                              const DropdownMenuItem(
+                                value: 'ADD_NEW_IP',
+                                child: Text('+ Dodaj nowy IP', overflow: TextOverflow.ellipsis),
+                              ),
+                            ],
+                            onChanged: (String? newValue) {
+                              setState(() {
+                                _isIpDropdownOpen = false;
+                              });
+                              if (newValue == 'ADD_NEW_IP') {
+                                _showAddIpDialog();
+                              } else if (newValue != null) {
+                                setState(() {
+                                  _selectedIp = newValue;
+                                  _ipController.text = newValue;
+                                });
+                                _saveData();
+                              }
+                            },
+                          ),
                         ),
                       ],
                     ),
@@ -340,34 +414,62 @@ class _HttpRequestGeneratorPageState extends State<HttpRequestGeneratorPage> {
                           style: TextStyle(fontWeight: FontWeight.w500),
                         ),
                         const SizedBox(height: 4),
-                        DropdownButtonFormField<String>(
-                          value: _selectedPort,
-                          isExpanded: true,
-                          decoration: const InputDecoration(
-                            border: OutlineInputBorder(),
-                          ),
-                          hint: const Text('Port'),
-                          items: [
-                            ..._portList.map((port) => DropdownMenuItem(
-                              value: port,
-                              child: Text(port, overflow: TextOverflow.ellipsis),
-                            )),
-                            const DropdownMenuItem(
-                              value: 'ADD_NEW_PORT',
-                              child: Text('+ Dodaj', overflow: TextOverflow.ellipsis),
-                            ),
-                          ],
-                          onChanged: (String? newValue) {
-                            if (newValue == 'ADD_NEW_PORT') {
-                              _showAddPortDialog();
-                            } else if (newValue != null) {
-                              setState(() {
-                                _selectedPort = newValue;
-                                _portController.text = newValue;
-                              });
-                              _saveData();
-                            }
+                        GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              _isPortDropdownOpen = !_isPortDropdownOpen;
+                            });
                           },
+                          child: DropdownButtonFormField<String>(
+                            value: _selectedPort,
+                            isExpanded: true,
+                            decoration: const InputDecoration(
+                              border: OutlineInputBorder(),
+                            ),
+                            hint: const Text('Port'),
+                            items: [
+                              ..._portList.map((port) => DropdownMenuItem(
+                                value: port,
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(port, overflow: TextOverflow.ellipsis),
+                                    ),
+                                    if (_isPortDropdownOpen)
+                                      IconButton(
+                                        icon: const Icon(Icons.delete, size: 16, color: Colors.red),
+                                        onPressed: () {
+                                          _removePort(port);
+                                          setState(() {
+                                            _isPortDropdownOpen = false;
+                                          });
+                                        },
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(),
+                                      ),
+                                  ],
+                                ),
+                              )),
+                              const DropdownMenuItem(
+                                value: 'ADD_NEW_PORT',
+                                child: Text('+ Dodaj', overflow: TextOverflow.ellipsis),
+                              ),
+                            ],
+                            onChanged: (String? newValue) {
+                              setState(() {
+                                _isPortDropdownOpen = false;
+                              });
+                              if (newValue == 'ADD_NEW_PORT') {
+                                _showAddPortDialog();
+                              } else if (newValue != null) {
+                                setState(() {
+                                  _selectedPort = newValue;
+                                  _portController.text = newValue;
+                                });
+                                _saveData();
+                              }
+                            },
+                          ),
                         ),
                       ],
                     ),
