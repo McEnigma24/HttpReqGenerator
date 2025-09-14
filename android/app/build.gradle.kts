@@ -37,6 +37,23 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
     }
+
+    // Konfiguracja nazw plików APK
+    applicationVariants.all { variant ->
+        variant.outputs.all { output ->
+            val appName = "HTTP_Request_Generator"
+            val versionName = variant.versionName
+            val versionCode = variant.versionCode
+            val buildType = variant.buildType.name
+            val date = java.text.SimpleDateFormat("yyyyMMdd_HHmm").format(java.util.Date())
+            
+            // Konstrukcja nowej nazwy pliku APK
+            val newApkName = "${appName}_${buildType}_v${versionName}_${date}.apk"
+            
+            // Ustawienie nowej nazwy pliku
+            (output as com.android.build.gradle.internal.api.BaseVariantOutputImpl).outputFileName = newApkName
+        }
+    }
 }
 
 flutter {
