@@ -1,17 +1,13 @@
 @echo off
 pushd "%~dp0"
 
-REM Pobierz aktualną datę i czas w formacie YYYYMMDD_HHMM
-for /f "tokens=2 delims==" %%a in ('wmic OS Get localdatetime /value') do set datetime=%%a
-set TIMESTAMP=%datetime:~0,8%_%datetime:~8,4%
-
 REM Ustaw nazwy plików
 if "%BUILD_TYPE%"=="debug" (
     set OLD_NAME=app-debug.apk
-    set NEW_NAME=HTTP_Request_Generator_debug_%TIMESTAMP%.apk
+    set NEW_NAME=HTTP_Request_Generator_DEBUG.apk
 ) else (
     set OLD_NAME=app-release.apk
-    set NEW_NAME=HTTP_Request_Generator_release_%TIMESTAMP%.apk
+    set NEW_NAME=HTTP_Request_Generator_RELEASE.apk
 )
 
 REM Zmień nazwę pliku
