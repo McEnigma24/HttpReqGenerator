@@ -13,6 +13,11 @@ if "%BUILD_TYPE%"=="debug" (
 REM Zmień nazwę pliku
 echo [4/4] Renaming APK file...
 if exist "build\app\outputs\flutter-apk\%OLD_NAME%" (
+    REM Usuń istniejący plik o nowej nazwie jeśli istnieje
+    if exist "build\app\outputs\flutter-apk\%NEW_NAME%" (
+        del "build\app\outputs\flutter-apk\%NEW_NAME%"
+        echo Removed existing file: %NEW_NAME%
+    )
     ren "build\app\outputs\flutter-apk\%OLD_NAME%" "%NEW_NAME%"
     echo.
     echo ========================================

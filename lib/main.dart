@@ -39,6 +39,7 @@ class _HttpRequestGeneratorPageState extends State<HttpRequestGeneratorPage> {
   
   bool _appendChecked = false;
   bool _isLoading = false;
+  bool _isCompleted = false;
 
   @override
   void initState() {
@@ -79,67 +80,81 @@ class _HttpRequestGeneratorPageState extends State<HttpRequestGeneratorPage> {
     await prefs.setString('api_path', _apiPathController.text);
     await prefs.setString('content', _contentController.text);
     await prefs.setBool('append', _appendChecked);
+    
+    // Resetuj stan po zmianie danych
+    if (_isCompleted) {
+      setState(() {
+        _isCompleted = false;
+      });
+    }
   }
 
   Future<void> _sendRequest() async {
     if (_ipController.text.isEmpty || _portController.text.isEmpty) {
-      _showSnackBar('Proszę wprowadzić adres IP i port');
       return;
     }
 
     setState(() {
       _isLoading = true;
+      _isCompleted = false;
     });
 
-    try {
-      // Automatycznie dodaj ukośnik na początku ścieżki API jeśli go nie ma
-      String apiPath = _apiPathController.text;
-      if (!apiPath.startsWith('/')) {
-        apiPath = '/$apiPath';
-      }
-      
-      final url = Uri.parse('http://${_ipController.text}:${_portController.text}$apiPath');
-      
-      final jsonPayload = {
-        'append': _appendChecked,
-        'text': _contentController.text,
-      };
+    // Automatycznie dodaj ukośnik na początku ścieżki API jeśli go nie ma
+    String apiPath = _apiPathController.text;
+    if (!apiPath.startsWith('/')) {
+      apiPath = '/$apiPath';
+    }
+    
+    final url = Uri.parse('http://${_ipController.text}:${_portController.text}$apiPath');
+    
+    final jsonPayload = {
+      'append': _appendChecked,
+      'text': _contentController.text,
+    };
 
-      final response = await http.post(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Connection': 'close', // Dodajemy header aby zamknąć połączenie po żądaniu
-        },
-        body: jsonEncode(jsonPayload),
-      ).timeout(const Duration(seconds: 30));
+    // Ponawianie requestów aż do sukcesu
+    bool success = false;
+    int attempt = 0;
+    const int maxAttempts = 10; // Maksymalnie 10 prób
 
-      if (response.statusCode == 200) {
-        _showSnackBar('Żądanie wysłane pomyślnie! Status: ${response.statusCode}');
-      } else {
-        _showSnackBar('Błąd: ${response.statusCode} - ${response.reasonPhrase}');
+    while (!success && attempt < maxAttempts && mounted) {
+      attempt++;
+      try {
+        final response = await http.post(
+          url,
+          headers: {
+            'Content-Type': 'application/json',
+            'Connection': 'close',
+          },
+          body: jsonEncode(jsonPayload),
+        ).timeout(const Duration(seconds: 10));
+
+        if (response.statusCode == 200) {
+          success = true;
+          if (mounted) {
+            setState(() {
+              _isLoading = false;
+              _isCompleted = true;
+            });
+          }
+        }
+      } catch (e) {
+        // Jeśli to nie ostatnia próba, czekaj chwilę przed ponowieniem
+        if (attempt < maxAttempts && mounted) {
+          await Future.delayed(const Duration(milliseconds: 500));
+        }
       }
-    } catch (e) {
-      String errorMessage = 'Błąd połączenia: $e';
-      if (e.toString().contains('Connection closed')) {
-        errorMessage = 'Błąd: Połączenie zostało zamknięte przez serwer. Sprawdź czy serwer działa na podanym adresie.';
-      }
-      _showSnackBar(errorMessage);
-    } finally {
+    }
+
+    // Jeśli nie udało się po wszystkich próbach
+    if (!success && mounted) {
       setState(() {
         _isLoading = false;
+        _isCompleted = false;
       });
     }
   }
 
-  void _showSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        duration: const Duration(seconds: 3),
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -293,6 +308,7 @@ class _HttpRequestGeneratorPageState extends State<HttpRequestGeneratorPage> {
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
+                  backgroundColor: _isCompleted ? Colors.green : null,
                 ),
                 child: _isLoading
                     ? const SizedBox(
@@ -300,11 +316,12 @@ class _HttpRequestGeneratorPageState extends State<HttpRequestGeneratorPage> {
                         width: 20,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Text(
-                        'SEND',
+                    : Text(
+                        _isCompleted ? 'COMPLETED' : 'SEND',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
+                          color: _isCompleted ? Colors.white : null,
                         ),
                       ),
               ),
