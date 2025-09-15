@@ -40,6 +40,7 @@ class _HttpRequestGeneratorPageState extends State<HttpRequestGeneratorPage> {
   bool _appendChecked = false;
   bool _isLoading = false;
   bool _isCompleted = false;
+  bool _isSending = false;
   
   // Listy dla dropdown'ów
   List<String> _ipList = [];
@@ -110,9 +111,11 @@ class _HttpRequestGeneratorPageState extends State<HttpRequestGeneratorPage> {
     await prefs.setBool('append', _appendChecked);
     
     // Resetuj stan po zmianie danych
-    if (_isCompleted) {
+    if (_isCompleted || _isSending) {
       setState(() {
         _isCompleted = false;
+        _isSending = false;
+        _isLoading = false;
       });
     }
   }
@@ -241,16 +244,27 @@ class _HttpRequestGeneratorPageState extends State<HttpRequestGeneratorPage> {
     );
   }
 
-  Future<void> _sendRequest() async {
+  void _toggleSending() {
     if (_selectedIp == null || _selectedPort == null) {
       return;
     }
 
     setState(() {
-      _isLoading = true;
-      _isCompleted = false;
+      _isSending = !_isSending;
+      if (_isSending) {
+        _isLoading = true;
+        _isCompleted = false;
+      } else {
+        _isLoading = false;
+      }
     });
 
+    if (_isSending) {
+      _startContinuousSending();
+    }
+  }
+
+  Future<void> _startContinuousSending() async {
     // Automatycznie dodaj ukośnik na początku ścieżki API jeśli go nie ma
     String apiPath = _apiPathController.text;
     if (!apiPath.startsWith('/')) {
@@ -264,13 +278,8 @@ class _HttpRequestGeneratorPageState extends State<HttpRequestGeneratorPage> {
       'text': _contentController.text,
     };
 
-    // Ponawianie requestów aż do sukcesu
-    bool success = false;
-    int attempt = 0;
-    const int maxAttempts = 10; // Maksymalnie 10 prób
-
-    while (!success && attempt < maxAttempts && mounted) {
-      attempt++;
+    // Ciągłe wysyłanie żądań aż do przerwania lub sukcesu
+    while (_isSending && mounted) {
       try {
         final response = await http.post(
           url,
@@ -279,30 +288,31 @@ class _HttpRequestGeneratorPageState extends State<HttpRequestGeneratorPage> {
             'Connection': 'close',
           },
           body: jsonEncode(jsonPayload),
-        ).timeout(const Duration(seconds: 10));
+        );
 
         if (response.statusCode == 200) {
-          success = true;
+          // Sukces - zakończ wysyłanie
           if (mounted) {
             setState(() {
+              _isSending = false;
               _isLoading = false;
               _isCompleted = true;
             });
           }
+          break;
         }
       } catch (e) {
-        // Jeśli to nie ostatnia próba, czekaj chwilę przed ponowieniem
-        if (attempt < maxAttempts && mounted) {
+        // W przypadku błędu, kontynuuj wysyłanie po krótkiej przerwie
+        if (_isSending && mounted) {
           await Future.delayed(const Duration(milliseconds: 500));
         }
       }
     }
 
-    // Jeśli nie udało się po wszystkich próbach
-    if (!success && mounted) {
+    // Jeśli pętla zakończyła się bez sukcesu (użytkownik przerwał)
+    if (!_isCompleted && mounted) {
       setState(() {
         _isLoading = false;
-        _isCompleted = false;
       });
     }
   }
@@ -546,13 +556,13 @@ class _HttpRequestGeneratorPageState extends State<HttpRequestGeneratorPage> {
               
               // Send button
               ElevatedButton(
-                onPressed: _isLoading ? null : _sendRequest,
+                onPressed: _toggleSending,
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  backgroundColor: _isCompleted ? Colors.green : null,
+                  backgroundColor: _isCompleted ? Colors.green : (_isSending ? Colors.red : null),
                 ),
                 child: _isLoading
                     ? const SizedBox(
@@ -561,11 +571,11 @@ class _HttpRequestGeneratorPageState extends State<HttpRequestGeneratorPage> {
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : Text(
-                        _isCompleted ? 'COMPLETED' : 'SEND',
+                        _isCompleted ? 'COMPLETED' : (_isSending ? 'STOP' : 'SEND'),
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
-                          color: _isCompleted ? Colors.white : null,
+                          color: (_isCompleted || _isSending) ? Colors.white : null,
                         ),
                       ),
               ),
