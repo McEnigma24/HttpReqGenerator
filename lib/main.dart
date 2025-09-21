@@ -264,6 +264,54 @@ class _HttpRequestGeneratorPageState extends State<HttpRequestGeneratorPage> {
     }
   }
 
+  Future<void> _sendOnOffMessage(String message) async {
+    if (_selectedIp == null || _selectedPort == null) {
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // Automatycznie dodaj ukośnik na początku ścieżki API jeśli go nie ma
+      String apiPath = _apiPathController.text;
+      if (!apiPath.startsWith('/')) {
+        apiPath = '/$apiPath';
+      }
+      
+      final url = Uri.parse('http://$_selectedIp:$_selectedPort$apiPath');
+      
+      final jsonPayload = {
+        'append': _appendChecked,
+        'text': '~~$message~~',
+      };
+
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Connection': 'close',
+        },
+        body: jsonEncode(jsonPayload),
+      ).timeout(const Duration(seconds: 10));
+
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _isCompleted = response.statusCode == 200;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _isCompleted = false;
+        });
+      }
+    }
+  }
+
   Future<void> _startContinuousSending() async {
     // Automatycznie dodaj ukośnik na początku ścieżki API jeśli go nie ma
     String apiPath = _apiPathController.text;
@@ -288,7 +336,7 @@ class _HttpRequestGeneratorPageState extends State<HttpRequestGeneratorPage> {
             'Connection': 'close',
           },
           body: jsonEncode(jsonPayload),
-        );
+        ).timeout(const Duration(seconds: 10));
 
         if (response.statusCode == 200) {
           // Sukces - zakończ wysyłanie
@@ -508,7 +556,7 @@ class _HttpRequestGeneratorPageState extends State<HttpRequestGeneratorPage> {
               ),
               const SizedBox(height: 16),
               
-              // Append checkbox
+              // Append checkbox and On/Off buttons
               Row(
                 children: [
                   Checkbox(
@@ -521,13 +569,25 @@ class _HttpRequestGeneratorPageState extends State<HttpRequestGeneratorPage> {
                     },
                   ),
                   const Text('Append'),
-                  const SizedBox(width: 8),
-                  const Text(
-                    'Check if you want to append',
-                    style: TextStyle(
-                      color: Colors.grey,
-                      fontSize: 14,
+                  const Spacer(),
+                  ElevatedButton(
+                    onPressed: _isSending || _isLoading ? null : () => _sendOnOffMessage('ON'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     ),
+                    child: const Text('On'),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    onPressed: _isSending || _isLoading ? null : () => _sendOnOffMessage('OFF'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    ),
+                    child: const Text('Off'),
                   ),
                 ],
               ),
