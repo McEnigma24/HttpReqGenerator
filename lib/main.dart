@@ -382,11 +382,12 @@ class _HttpRequestGeneratorPageState extends State<HttpRequestGeneratorPage> {
         elevation: 0,
       ),
       resizeToAvoidBottomInset: false, // Prevents keyboard from pushing UI up
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
               
               // IP Address and Port row
               Row(
@@ -593,28 +594,27 @@ class _HttpRequestGeneratorPageState extends State<HttpRequestGeneratorPage> {
               ),
               const SizedBox(height: 16),
               
-              // Content text area
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Content',
-                    style: TextStyle(fontWeight: FontWeight.w500),
-                  ),
-                  const SizedBox(height: 4),
-                  TextField(
-                    controller: _contentController,
-                    maxLines: 4,
-                    decoration: const InputDecoration(
-                      border: OutlineInputBorder(),
-                      hintText: 'Enter your content here...',
-                    ),
-                  ),
-                ],
+              // Content text area - now expanded to fill available space
+              const Text(
+                'Content',
+                style: TextStyle(fontWeight: FontWeight.w500),
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 4),
+              Expanded(
+                child: TextField(
+                  controller: _contentController,
+                  maxLines: null,
+                  expands: true,
+                  textAlignVertical: TextAlignVertical.top,
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                    hintText: 'Enter your content here...',
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
               
-              // Send button
+              // Send button at the bottom
               ElevatedButton(
                 onPressed: _toggleSending,
                 style: ElevatedButton.styleFrom(
@@ -641,6 +641,7 @@ class _HttpRequestGeneratorPageState extends State<HttpRequestGeneratorPage> {
               ),
           ],
         ),
+      ),
       ),
     );
   }
